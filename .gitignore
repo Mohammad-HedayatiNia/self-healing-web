@@ -1,0 +1,4 @@
+*.bicepparam.local
+.azure/
+*.log
+.DS_Store
