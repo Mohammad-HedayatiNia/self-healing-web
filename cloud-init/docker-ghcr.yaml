@@ -1,0 +1,20 @@
+#cloud-config
+# BONUS variant: installs Docker and runs the containerised page pulled
+# from GitHub Container Registry instead of installing nginx directly.
+# Swap this file in as the `customData` source in infra/main.bicep to use it
+# (see README.md "Bonus: containerised variant").
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - docker.io
+
+runcmd:
+  - systemctl enable docker
+  - systemctl start docker
+  # Replace <GHCR_OWNER>/<IMAGE> with your published image, e.g.
+  #   ghcr.io/mohammad/self-healing-web:latest
+  - docker pull ghcr.io/<GHCR_OWNER>/self-healing-web:latest
+  - docker run -d --name web --restart unless-stopped -p 80:80 ghcr.io/<GHCR_OWNER>/self-healing-web:latest
+  - echo "container pulled and started via cloud-init" > /var/log/cloud-init-web.log
