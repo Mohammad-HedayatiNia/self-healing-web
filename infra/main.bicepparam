@@ -1,6 +1,7 @@
 using 'main.bicep'
 
-param location = 'australiaeast'
+param location = 'australiaeast' // if your subscription is region-restricted (e.g. Azure for Students),
+                                  // replace with an allowed region — see README "Region availability" note
 param namePrefix = 'shweb'
 param environment = 'dev'
 param instanceCount = 2

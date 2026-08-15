@@ -79,6 +79,25 @@ so cost and resources can be filtered consistently regardless of who deploys.
 - An Azure subscription and `az login`
 - An SSH key pair (`ssh-keygen -t ed25519`) — only the public key is ever passed in
 
+## Region availability
+
+`australiaeast` is the default in `infra/main.bicepparam`, but restricted subscription
+types (e.g. **Azure for Students**, some free trials) are limited by an Azure Policy
+("Allowed resource deployment regions") to a small, account-specific set of regions
+that may not include it. If `what-if`/`create` fails with `RequestDisallowedByAzure`,
+check your allowed regions (Portal → **Policy → Assignments** → the "Allowed
+resource deployment regions" assignment → **Parameters** tab, or
+`az policy assignment list -o table` via CLI) and override the location, e.g.:
+
+```bash
+az deployment group what-if -g rg-self-healing-web -f infra/main.bicep \
+  -p infra/main.bicepparam -p location=eastus \
+  -p sshPublicKey="$(cat ~/.ssh/shweb_key.pub)"
+```
+
+`-p location=<region>` on the command line overrides the value in the params file
+without editing it, which is the cleanest way to handle this per-reviewer.
+
 ## Running a plan (no resources created)
 
 ```bash
