@@ -81,17 +81,19 @@ so cost and resources can be filtered consistently regardless of who deploys.
 
 ## Region availability
 
-`australiaeast` is the default in `infra/main.bicepparam`, but restricted subscription
+`southeastasia` is the default in `infra/main.bicepparam`. Restricted subscription
 types (e.g. **Azure for Students**, some free trials) are limited by an Azure Policy
-("Allowed resource deployment regions") to a small, account-specific set of regions
-that may not include it. If `what-if`/`create` fails with `RequestDisallowedByAzure`,
-check your allowed regions (Portal → **Policy → Assignments** → the "Allowed
-resource deployment regions" assignment → **Parameters** tab, or
-`az policy assignment list -o table` via CLI) and override the location, e.g.:
+("Allowed resource deployment regions" / `sys.regionrestriction`) to a small,
+account-specific set of regions — `australiaeast` is commonly *not* included, so
+`southeastasia` was picked instead as a broadly-available fallback. If `what-if`/
+`create` still fails with `RequestDisallowedByAzure`, check your own allowed
+regions and override the location, e.g.:
 
 ```bash
+az policy assignment show --name "sys.regionrestriction" --query "parameters"
+# then:
 az deployment group what-if -g rg-self-healing-web -f infra/main.bicep \
-  -p infra/main.bicepparam -p location=eastus \
+  -p infra/main.bicepparam -p location=<your-allowed-region> \
   -p sshPublicKey="$(cat ~/.ssh/shweb_key.pub)"
 ```
 
@@ -164,7 +166,12 @@ watch az vmss list-instances -g rg-self-healing-web -n shweb-vmss -o table
 - No autoscale-by-metric rules — capacity is fixed at N+1 (2) since the brief asks
   for "at least two instances," not elastic scaling.
 
-## Estimated monthly cost (AUD, `australiaeast`, pay-as-you-go, if fully deployed 24/7)
+## Estimated monthly cost (AUD, pay-as-you-go, if fully deployed 24/7)
+
+*Pricing below is quoted for `australiaeast` as the target region per the brief; if
+your deployment actually lands in a different allowed region (see "Region
+availability" above, e.g. `southeastasia`), expect these figures to shift by roughly
+±10%, not by an order of magnitude.*
 
 | Resource | Est. USD/mo | Est. AUD/mo* |
 |---|---|---|
