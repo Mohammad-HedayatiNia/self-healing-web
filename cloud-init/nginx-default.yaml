@@ -1,0 +1,14 @@
+#cloud-config
+# Bootstraps the default NGINX "welcome" page. This satisfies must-have #4
+# with the simplest possible surface area (no container runtime required).
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - nginx
+
+runcmd:
+  - systemctl enable nginx
+  - systemctl start nginx
+  - echo "nginx installed and started via cloud-init" > /var/log/cloud-init-web.log
