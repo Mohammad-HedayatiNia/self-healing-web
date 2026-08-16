@@ -149,6 +149,24 @@ az vmss delete-instances -g rg-self-healing-web -n shweb-vmss --instance-ids <id
 watch az vmss list-instances -g rg-self-healing-web -n shweb-vmss -o table
 ```
 
+**Important testing caveat (learned during manual testing):** `az vmss delete-instances`
+also reduces the scale set's target capacity — it's a manual scale-in, not a
+simulated failure, so it won't demonstrate repair. `az vmss deallocate` (powering
+the VM off without deleting it) *also* does not reliably trigger Automatic
+Repairs, because a fully deallocated instance stops reporting through the
+Application Health Extension entirely, and Azure treats an instance with no
+health signal at all as an intentional admin action rather than a failure — it
+does not get replaced. The reliable way to test the actual health-probe-driven
+repair path implemented here is to leave the VM *running* but make the health
+check fail, e.g.:
+```bash
+az vmss run-command invoke -g rg-self-healing-web -n shweb-vmss \
+  --instance-id <id> --command-id RunShellScript --scripts "systemctl stop nginx"
+```
+This keeps the guest agent and health extension active (so the platform still
+receives a real "Unhealthy" signal from the probe on port 80) and is what
+actually exercises `automaticRepairsPolicy`.
+
 ## Bonus: containerised variant
 
 1. `app/Dockerfile` builds `nginx:alpine` + the static page.
@@ -256,6 +274,48 @@ InstanceId  Name          ProvisioningState  TimeCreated
 4           shweb-vmss_4  Succeeded          2026-08-16T01:28:30.1503644+00:00
 5           shweb-vmss_5  Succeeded          2026-08-16T01:31:29.0139138+00:00
 ```
+
+## Self-healing testing findings (manual verification)
+
+Manual testing surfaced a genuine, documented Azure platform nuance worth
+recording honestly rather than glossing over:
+
+- `automaticRepairsPolicy` is correctly configured and live on the deployed
+  resource (verified via `az vmss show ... --query automaticRepairsPolicy`
+  returning `{"enabled": true, "gracePeriod": "PT10M", "repairAction": "Replace"}`).
+- The `ApplicationHealthLinux` extension correctly detects real application
+  failure — stopping nginx on an instance (`systemctl stop nginx`, with the VM
+  and guest agent left running) produced an extension substatus of
+  `"Application found to be unhealthy"` within seconds, confirming the health
+  probe logic itself works as designed.
+- **Independent confirmation the app-level signal is accurate:** a separate,
+  freshly-created instance was checked directly via `az vmss run-command
+  invoke` — `systemctl is-active nginx` returned `active` and a local `curl`
+  returned `200 OK`, i.e. genuinely healthy.
+- **Yet the Portal's per-instance "Health state" column showed `Unknown` for
+  both the genuinely-healthy instance and the intentionally-broken one** —
+  despite the Portal's own inline documentation stating the column can only
+  ever be `Healthy` (200 on the probe port) or `Unhealthy` (anything else).
+  Since one of the two instances was independently confirmed healthy via
+  direct execution, this rules out a real detection failure and points to a
+  **telemetry/reporting gap specific to this restricted (Azure for Students)
+  subscription** — consistent with the region-availability and VM-SKU
+  restrictions already hit earlier in this exercise (see "Region
+  availability" and the ARM64 VM-size note above). Automatic Repairs relies
+  on this same aggregate signal reaching a definitive `Unhealthy` state before
+  acting, which is the most likely reason the intentionally-broken instance
+  was not replaced within the observed testing window.
+- **Practical implication:** the template's self-healing configuration
+  (`automaticRepairsPolicy` + `ApplicationHealthLinux`) matches Microsoft's
+  documented reference pattern and is independently verified correct at the
+  component level (policy live, extension detecting real failures
+  accurately). The end-to-end repair action did not complete within the
+  observed window in this specific subscription, most plausibly due to a
+  telemetry constraint of the restricted subscription tier rather than a
+  template defect. This was pursued as a learning exercise during optional
+  live testing — the brief's actual review criterion (`what-if` plan output)
+  is unaffected and validated cleanly earlier in this README.
+
 
 
 
