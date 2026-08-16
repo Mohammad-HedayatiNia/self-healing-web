@@ -6,7 +6,7 @@ param location = 'southeastasia' // Azure for Students / region-restricted subsc
 param namePrefix = 'shweb'
 param environment = 'dev'
 param instanceCount = 2
-param vmSize = 'Standard_B1s'
+param vmSize = 'Standard_B2pts_v2'
 param adminUsername = 'azureuser'
 // Do NOT commit a real key here. Pass at deploy time instead, e.g.:
 //   az deployment group create ... -p sshPublicKey="$(cat ~/.ssh/id_ed25519.pub)"

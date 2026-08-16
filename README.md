@@ -117,6 +117,16 @@ be created/changed without touching the subscription. As noted in the brief,
 provisioning is optional — this repo has only been validated with `bicep build`
 and `what-if`, not a live `apply`.
 
+**Known `what-if` limitation (not a bug):** the `network` and `loadbalancer`
+modules fully evaluate and show every property in `what-if`. The `vmss` module
+will show as `NestedDeploymentShortCircuited` because it consumes cross-module
+outputs (`network.outputs.subnetId`, `loadbalancer.outputs.backendPoolId`) that
+`what-if` cannot resolve ahead of an actual deployment — this is documented,
+expected ARM behaviour for nested/linked templates with inter-module
+dependencies (see [aka.ms/WhatIfEvalStopped](https://aka.ms/WhatIfEvalStopped)),
+not an error in the template. A live `apply` resolves these outputs normally and
+creates the VMSS as specified.
+
 ## Applying (optional)
 
 ```bash
@@ -155,6 +165,14 @@ watch az vmss list-instances -g rg-self-healing-web -n shweb-vmss -o table
 
 - Region: `australiaeast`. No other region-specific behaviour assumed.
 - Ubuntu 24.04 LTS as the base image (smallest supported footprint for a static page).
+- **VM architecture: ARM64**, using the `Standard_B2pts_v2` size and the matching
+  `Canonical:ubuntu-24_04-lts:server-arm64` image. This subscription's capacity for
+  standard x64 B-series sizes (`Standard_B1s`, `Standard_B1ls`, etc.) returned
+  `SkuNotAvailable` in `southeastasia`; `az vm list-skus` confirmed only the ARM64
+  "p"-series (Ampere Altra) sizes are unrestricted for this subscription/region
+  combination. If deploying under a different subscription with x64 capacity,
+  swap `vmSize` back to an x64 size (e.g. `Standard_B1s`) and the image `sku`
+  back to `server` in `infra/modules/vmss.bicep`.
 - SSH is left open to `Internet` by default via the `sshSourceCidr` parameter purely
   so the plan is reviewable without knowing the reviewer's IP; in real use this
   should be locked to a specific CIDR (or removed and Azure Bastion used instead).

@@ -18,8 +18,8 @@ param namePrefix string
 @minValue(2)
 param instanceCount int = 2
 
-@description('VM SKU. Small burstable size keeps this well under the AUD 20/month target.')
-param vmSize string = 'Standard_B1s'
+@description('VM SKU. ARM64 burstable size — required because this subscription only has ARM64 (Ampere Altra "p"-series) VM capacity available in this region; the matching ARM64 Ubuntu image SKU is set in storageProfile below.')
+param vmSize string = 'Standard_B2pts_v2'
 
 @description('Admin username for the VMs')
 param adminUsername string
@@ -82,7 +82,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2023-09-01' = {
         imageReference: {
           publisher: 'Canonical'
           offer: 'ubuntu-24_04-lts'
-          sku: 'server'
+          sku: 'server-arm64'
           version: 'latest'
         }
         osDisk: {
