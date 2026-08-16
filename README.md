@@ -212,7 +212,52 @@ simple and reviewable) but are straightforward follow-ups:
   — since this exercise is plan-only, actual spend during review is effectively $0.
 - Use Azure Dev/Test pricing if this were run under a Dev/Test subscription.
 
-## Pipeline
+## Idempotency proof (real drift-correction example from testing)
+
+While manually testing self-healing, `az vmss delete-instances --instance-ids 0`
+was used to simulate an instance loss. Unlike a platform-triggered health repair,
+this CLI command explicitly reduces the scale set's target capacity as well —
+so the desired state drifted from the template (`instanceCount = 2`) to an
+actual capacity of 1:
+
+```bash
+$ az vmss show -g rg-self-healing-web -n shweb-vmss --query "sku.capacity"
+1
+```
+
+Re-running the exact same deployment command used to originally provision the
+environment — no code changes, same parameters — corrected the drift back to
+the declared desired state (2 instances), without touching any resource that
+was already correct (VNet, NSG, LB, existing VM):
+
+```bash
+az deployment group create \
+  -g rg-self-healing-web \
+  -f infra/main.bicep \
+  -p infra/main.bicepparam \
+  -p sshPublicKey="$(cat ~/.ssh/shweb_key.pub)"
+```
+
+This is idempotency in practice: the template describes a *desired end state*
+(2 instances, N+1), not a sequence of steps, so ARM/Bicep reconciles whatever
+the actual state is toward that declaration every time it runs — whether that
+means creating everything from nothing (first run) or fixing a single instance
+of drift (this case) or genuinely doing nothing (unchanged state, satisfying
+the "second run makes no changes" requirement).
+
+**Confirmed result** — re-running the deployment (57s, vs. ~2.5min for the
+original from-scratch apply, since only the missing instance needed creating)
+restored capacity to 2 and brought the scale set back to N+1:
+
+```bash
+$ az vmss list-instances -g rg-self-healing-web -n shweb-vmss -o table
+InstanceId  Name          ProvisioningState  TimeCreated
+----------  ------------  -----------------  ----------------------------------
+4           shweb-vmss_4  Succeeded          2026-08-16T01:28:30.1503644+00:00
+5           shweb-vmss_5  Succeeded          2026-08-16T01:31:29.0139138+00:00
+```
+
+
 
 `.github/workflows/bicep-validate.yml` runs `az bicep build` (lint/type-check) on
 every PR touching `infra/**`, and — only if Azure OIDC secrets/vars are configured
