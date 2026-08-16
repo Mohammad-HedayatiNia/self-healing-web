@@ -4,6 +4,11 @@
 // LB rule (80 -> 80) and an explicit outbound rule so VMSS instances (which
 // have no public IP of their own) get outbound internet access — required
 // for apt/docker pulls during cloud-init on a Standard LB.
+//
+// Note: the LB rule sets disableOutboundSnat = true because Azure requires
+// this whenever the same frontend IP configuration is also referenced by an
+// explicit outbound rule (which it is here) — otherwise deployment fails with
+// LoadBalancingRuleMustDisableSNATSinceSameFrontendIPConfigurationIsReferencedByOutboundRule.
 // =============================================================================
 
 @description('Azure region for all resources')
@@ -83,6 +88,7 @@ resource lb 'Microsoft.Network/loadBalancers@2023-11-01' = {
           backendPort: 80
           idleTimeoutInMinutes: 4
           enableFloatingIP: false
+          disableOutboundSnat: true
         }
       }
     ]
